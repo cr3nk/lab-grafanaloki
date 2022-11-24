@@ -39,7 +39,7 @@ scrape_configs:
   #job Docker
   - job_name: "Docker Job"
     static_configs:
-      - targets: ["localhost:9323"]
+      - targets: ["localhost:9093"]
 
   - job_name: 'cadvisor'
 
