@@ -162,7 +162,7 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:1.30.0
     container_name: jaegertracing
-    user:"0:0"
+    user: "0:0"
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
