@@ -1,37 +1,28 @@
-version: "3.4"
+version: "3.5"
+
+networks:
+  loki:
 
 services:
-  #my-nginx-service:
-  #  image: nginx
-  #  container_name: nginx-service
-  #  ports:
-  #    - 8000:80
-  #  environment:
-  #    - FOO=bar
-  #  logging:
-  #    driver: loki
-  #    options:
-  #      loki-url: http://localhost:3100/loki/api/v1/push
-  #      loki-external-labels: job=dockerlogs,owner=aegis,environment=development
-  #  restart: unless-stopped
 
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
     user: "0:0"
     environment:
-      - ./env/configuration.env
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      -  GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME}
+      -  GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
     volumes:
-    - /etc/localtime:/etc/localtime:ro
-    - /etc/timezone:/etc/timezone:ro
-    - ./env/grafana.ini:/etc/grafana/grafana.ini
-    - ./grafana/storage:/var/lib/grafana
-    - ./grafana/provisioning:/etc/grafana/provisioning
-    - ./grafana/dashboards:/etc/grafana/dashboards
-    - ./config/datasource.yml:/etc/grafana/datasource.yml
+    - ./ds_store/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+    - ./ds_store/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+    - ./ds_store/grafana/dashboards:/var/lib/grafana/dashboards:ro 
     ports:
     - "3000:3000"
     restart: unless-stopped
+    networks:
+      - loki
 
   loki:
    image: grafana/loki:latest
@@ -49,6 +40,8 @@ services:
    ports:
      - "3100:3100"
    restart: unless-stopped
+   networks:
+     - loki
 
   promtail:
     image: grafana/promtail:latest
@@ -67,7 +60,8 @@ services:
     ports:
       - "9080:9080"
     restart: unless-stopped
-
+    networks:
+      - loki 
 
   prometheus:
     image: prom/prometheus:latest
@@ -83,6 +77,20 @@ services:
     ports:
       - "9090:9090"
     restart: unless-stopped
+    networks:
+      - loki
+  
+  syslog-ng:
+    image: balabit/syslog-ng:latest
+    container_name: syslog-ng
+    command: -edv
+    volumes:
+      - ./config/syslog-ng.conf:/etc/syslog-ng/syslog-ng.conf:ro
+    ports: ["1514:1514/udp", "6011:6011/tcp"]
+    restart: unless-stopped
+    networks:
+      - loki
+
 
   alertmanager:
     image: prom/alertmanager:latest
@@ -94,6 +102,9 @@ services:
       - "./config:/config"
       - ./alertmanager:/data
     command: --config.file=/config/alertmanager.yml --log.level=debug  
+    networks:
+      - loki
+
 
   node-exporter:
     image: prom/node-exporter:latest
@@ -113,6 +124,8 @@ services:
     ports:
       - "9100:9100"
     restart: unless-stopped  
+    networks:
+      - loki  
 
   influxdb:
     image: influxdb:latest
@@ -126,7 +139,8 @@ services:
     environment:
       - ./env/fluxdb.ini:/etc/fluxdb.ini
     restart: unless-stopped   
-
+    networks:
+      - loki
 #  reporter:
 #    image: registry.gitlab.com/irtec/grafana-report:1.1.0
 #    container_name: report
@@ -136,13 +150,13 @@ services:
 #      - /etc/timezone:/etc/timezone:ro
 #    restart: unless-stopped
 
-  renderer:
-    image: grafana/grafana-image-renderer:latest
-    container_name: render
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-    restart: unless-stopped
+#  renderer:
+#    image: grafana/grafana-image-renderer:latest
+#    container_name: render
+#    volumes:
+#      - /etc/localtime:/etc/localtime:ro
+#      - /etc/timezone:/etc/timezone:ro
+#    restart: unless-stopped
  
   cadvisor:
     image: gcr.io/google-containers/cadvisor:v0.36.0
@@ -158,7 +172,8 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
-    
+    networks:
+      - loki
   jaeger:
     image: jaegertracing/all-in-one:1.30.0
     container_name: jaegertracing
@@ -176,14 +191,15 @@ services:
       - BADGER_SPAN_STORE_TTL=168h0m0s
     ports: ["6831:6831/udp", "6832:6832/udp", "14250:14250", "14269:14269", "16686:16686"]
     restart: unless-stopped  
-
-  opentelemetry-collector:
-    image: otel/opentelemetry-collector:0.58.0
-    container_name: otel
-    command: --config=/conf/otel-collector.yaml
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-      - ./config/otel-collector.yaml:/conf/otel-collector.yaml
-    ports: ["9464:9464", "55680:55680", "55681:55681"] 
-    restart: unless-stopped
+    networks:
+      - loki
+  #opentelemetry-collector:
+  #  image: otel/opentelemetry-collector:0.58.0
+  #  container_name: otel
+  #  command: --config=/conf/otel-collector.yaml
+  #  volumes:
+  #    - /etc/localtime:/etc/localtime:ro
+  #    - /etc/timezone:/etc/timezone:ro
+  #    - ./config/otel-collector.yaml:/conf/otel-collector.yaml
+  #  ports: ["9464:9464", "55680:55680", "55681:55681"] 
+  #  restart: unless-stopped
